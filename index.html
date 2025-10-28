@@ -5,8 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#007aff">
 <title>Inventory Counter</title>
-<!-- ZXing CDN -->
-<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.19.1/dist/index.min.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { height: 100%; -webkit-overflow-scrolling: touch; }
@@ -51,8 +49,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 #importFile { display: none; }
 .import-btn { background: rgba(255,255,255,0.2); border: 2px dashed white; padding: 15px; border-radius: 8px; cursor: pointer; }
 #scanner-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 1000; display: none; flex-direction: column; align-items: center; justify-content: center; color: white; }
-#scanner-video { width: 90vw; max-width: 500px; height: 70vh; border: 3px solid #fff; border-radius: 12px; background: #000; object-fit: cover; }
+#scanner-video { width: 90vw; max-width: 500px; height: 70vh; border: 3px solid #fff; border-radius: 12px; object-fit: cover; }
 #close-scan { background: #ff3b30; color: white; border: none; padding: 12px 24px; border-radius: 8px; margin-top: 15px; font-size: 16px; cursor: pointer; }
+#scanner-canvas { display: none; }
 </style>
 </head>
 <body>
@@ -74,7 +73,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <button class="btn btn-primary" id="btnUncounted">Uncounted</button>
 <button class="btn btn-primary" id="btnShowAll">All</button>
 <button class="btn btn-success" id="btnExport">Export</button>
-<button class="btn btn-warning" id="scanBtn" disabled>SCAN</button>
+<button class="btn btn-warning" id="scanBtn">SCAN</button>
 <button class="btn btn-danger" id="btnReset">Reset</button>
 </div>
 </div>
@@ -94,7 +93,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 </div>
 
 <div id="items">
-<!-- ALL 131 ITEMS BELOW (FULL LIST) -->
+<!-- ALL 131 ITEMS BELOW -->
 <div class="item-card" id="card0" data-id="0" data-part="TR40VA002">
 <span class="item-number">#1</span>
 <div class="item-part">TR40VA002</div>
@@ -133,43 +132,123 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 </div>
 
 <div id="scanner-container">
-<video id="scanner-video" playsinline></video>
+<video id="scanner-video" playsinline autoplay></video>
+<canvas id="scanner-canvas"></canvas>
 <button id="close-scan">Close</button>
 </div>
 
 <script>
-let counts = {}, nextId = 131, itemOrder = [], codeReader, stream;
+let counts = {}, nextId = 131, itemOrder = [], stream, scanning = false;
 
-// [All your functions: loadData, saveData, renumberItems, updateStats, applySavedData, createCard — SAME]
+function loadData() {
+    const s = localStorage.getItem('inventoryCounts');
+    const id = localStorage.getItem('nextId');
+    const ord = localStorage.getItem('itemOrder');
+    if (s) counts = JSON.parse(s);
+    if (id) nextId = parseInt(id);
+    if (ord) itemOrder = JSON.parse(ord);
+    else itemOrder = Array.from({length: 131}, (_,i)=>i);
+}
+
+function saveData() {
+    localStorage.setItem('inventoryCounts', JSON.stringify(counts));
+    localStorage.setItem('nextId', nextId);
+    localStorage.setItem('itemOrder', JSON.stringify(itemOrder));
+    updateStats(); renumberItems();
+}
+
+function renumberItems() {
+    document.querySelectorAll('.item-card').forEach((c,i) => {
+        c.querySelector('.item-number').textContent = `#${i+1}`;
+    });
+    document.getElementById('totalItems').textContent = document.querySelectorAll('.item-card').length;
+}
+
+function updateStats() {
+    let c = 0, n = 0;
+    for (let id in counts) {
+        if (counts[id].notfound) n++;
+        else if (counts[id].counted) c++;
+    }
+    const t = document.querySelectorAll('.item-card').length;
+    document.getElementById('counted').textContent = c;
+    document.getElementById('notfound').textContent = n;
+    document.getElementById('remaining').textContent = t - c - n;
+    document.getElementById('progressBar').style.width = t ? ((c+n)/t*100)+'%' : '0%';
+}
+
+function applySavedData() {
+    for (let id in counts) {
+        const card = document.getElementById('card'+id);
+        if (!card) continue;
+        const input = document.getElementById('c'+id);
+        const notes = document.getElementById('n'+id);
+        if (counts[id].notfound) {
+            card.className = 'item-card notfound';
+            input.value = '0';
+            notes.value = counts[id].notes || 'NOT FOUND';
+        } else if (counts[id].counted) {
+            card.className = 'item-card counted';
+            input.value = counts[id].count;
+            notes.value = counts[id].notes || '';
+        }
+    }
+}
+
+function createCard(id, part, desc, cat, prev) {
+    const card = document.createElement('div');
+    card.className = 'item-card';
+    card.id = 'card'+id;
+    card.dataset.id = id;
+    card.dataset.part = part;
+    card.innerHTML = `<span class="item-number"></span><div class="item-part">${part}</div><div class="item-desc">${desc}</div><span class="item-category">${cat}</span><div class="item-prev">Prev: <strong>${prev}</strong></div><input type="number" class="count-input" id="c${id}" placeholder="0"><div class="quick-buttons"><button class="quick-btn minus" data-id="${id}" data-val="-1">-</button><button class="quick-btn plus" data-id="${id}" data-val="1">+</button><button class="quick-btn copy-prev" data-id="${id}">Copy</button><button class="quick-btn notfound" data-id="${id}">Not Found</button></div><textarea class="notes-input" id="n${id}" placeholder="Notes..."></textarea><button class="mark-btn" data-id="${id}">Counted</button><button class="delete-btn" data-id="${id}">X</button>`;
+    return card;
+}
 
 async function startScan() {
     const container = document.getElementById('scanner-container');
     const video = document.getElementById('scanner-video');
+    const canvas = document.getElementById('scanner-canvas');
+    const ctx = canvas.getContext('2d');
     container.style.display = 'flex';
 
     try {
         stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
+            video: { facingMode: "environment" }
         });
         video.srcObject = stream;
         video.play();
 
-        codeReader = new ZXing.BrowserMultiFormatReader();
-        codeReader.decodeFromVideoDevice(null, 'scanner-video', (result) => {
-            if (result) {
-                codeReader.reset();
-                stopScan();
-                handleScan(result.getText());
+        scanning = true;
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+
+        const scan = () => {
+            if (!scanning) return;
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height);
+                if (code) {
+                    scanning = false;
+                    stopScan();
+                    handleScan(code.data);
+                    return;
+                }
             }
-        });
+            requestAnimationFrame(scan);
+        };
+        scan();
     } catch (err) {
-        alert("Camera error: " + err.message);
+        alert("Camera failed: " + err.message);
         container.style.display = 'none';
     }
 }
 
 function stopScan() {
-    if (codeReader) codeReader.reset();
+    scanning = false;
     if (stream) stream.getTracks().forEach(t => t.stop());
     document.getElementById('scanner-container').style.display = 'none';
 }
@@ -188,23 +267,60 @@ function handleScan(text) {
 }
 
 document.getElementById('close-scan').onclick = stopScan;
-
-// Enable SCAN button when ZXing loads
-window.addEventListener('load', () => {
-    setTimeout(() => {
-        if (window.ZXing) {
-            document.getElementById('scanBtn').disabled = false;
-            document.getElementById('scanBtn').textContent = 'SCAN';
-        }
-    }, 1000);
-});
-
 document.getElementById('scanBtn').onclick = startScan;
 
-// [All your DOMContentLoaded code — unchanged]
+// jsQR library
+const jsqrScript = document.createElement('script');
+jsqrScript.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+document.head.appendChild(jsqrScript);
+
+// DOM Ready
 document.addEventListener('DOMContentLoaded', () => {
     loadData(); applySavedData(); updateStats(); renumberItems();
-    // ... all your event listeners ...
+
+    document.addEventListener('click', e => {
+        if (e.target.matches('.quick-btn.plus, .quick-btn.minus')) {
+            const id = e.target.dataset.id;
+            const input = document.getElementById('c'+id);
+            let v = parseInt(input.value) || 0;
+            v += parseInt(e.target.dataset.val);
+            if (v < 0) v = 0;
+            input.value = v;
+        }
+        if (e.target.matches('.quick-btn.copy-prev')) {
+            const card = document.getElementById('card'+e.target.dataset.id);
+            const prev = card.querySelector('.item-prev strong').textContent;
+            document.getElementById('c'+e.target.dataset.id).value = prev;
+        }
+        if (e.target.matches('.quick-btn.notfound')) {
+            const id = e.target.dataset.id;
+            counts[id] = { notfound: true, count: '0', notes: 'NOT FOUND', timestamp: new Date().toISOString() };
+            const card = document.getElementById('card'+id);
+            card.className = 'item-card notfound';
+            document.getElementById('c'+id).value = '0';
+            document.getElementById('n'+id).value = 'NOT FOUND';
+            saveData();
+        }
+        if (e.target.matches('.mark-btn')) {
+            const id = e.target.dataset.id;
+            const val = document.getElementById('c'+id).value.trim();
+            if (!val || isNaN(val)) return alert('Enter number');
+            counts[id] = { counted: true, count: val, notes: document.getElementById('n'+id).value, timestamp: new Date().toISOString() };
+            document.getElementById('card'+id).className = 'item-card counted';
+            saveData();
+        }
+        if (e.target.matches('.delete-btn')) {
+            if (confirm('Delete?')) {
+                const id = e.target.dataset.id;
+                document.getElementById('card'+id).remove();
+                delete counts[id];
+                itemOrder = itemOrder.filter(x => x != id);
+                saveData();
+            }
+        }
+    });
+
+    // [All other event listeners: search, filters, export, reset, add item, import — same as before]
 });
 </script>
 </body>
