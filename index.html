@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#007aff">
 <title>Inventory Counter</title>
-<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { height: 100%; -webkit-overflow-scrolling: touch; }
@@ -18,14 +17,14 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .stat-value { font-size: 18px; font-weight: bold; color: #1d1d1f; }
 .controls { background: white; padding: 15px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
 .search-box { width: 100%; padding: 12px; font-size: 16px; border: 2px solid #e5e5ea; border-radius: 8px; margin-bottom: 10px; }
-.control-btns { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
-.btn { padding: 10px; font-size: 14px; font-weight: 600; border: none; border-radius: 8px; cursor: pointer; }
+.control-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.btn { padding: 12px; font-size: 15px; font-weight: 600; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
 .btn:active { transform: scale(0.95); }
 .btn-primary { background: #007aff; color: white; }
 .btn-success { background: #34c759; color: white; }
 .btn-warning { background: #ff9500; color: white; }
 .btn-danger { background: #ff3b30; color: white; }
-.item-card { background: white; padding: 18px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 5px solid #007aff; position: relative; }
+.item-card { background: white; padding: 18px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 5px solid #007aff; transition: all 0.3s; position: relative; }
 .item-card.counted { border-left-color: #34c759; opacity: 0.8; }
 .item-card.notfound { border-left-color: #ff9500; opacity: 0.8; }
 .item-card.custom { border-left-color: #9333ea; }
@@ -36,23 +35,23 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .item-prev { font-size: 13px; color: #666; margin-bottom: 10px; }
 .count-input { width: 100%; padding: 14px; font-size: 22px; font-weight: bold; border: 3px solid #007aff; border-radius: 8px; text-align: center; margin: 10px 0; }
 .quick-buttons { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; margin: 10px 0; }
-.quick-btn { padding: 12px; background: #f5f5f7; border: 2px solid #e5e5ea; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; }
-.quick-btn:active { transform: scale(0.95); }
-.quick-btn.minus { background: #ff3b30; color: white; }
-.quick-btn.plus { background: #34c759; color: white; }
-.quick-btn.notfound { background: #ff9500; color: white; }
+.quick-btn { padding: 12px; background: #f5f5f7; border: 2px solid #e5e5ea; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: all 0.2s; }
+.quick-btn:active { background: #e5e5ea; transform: scale(0.95); }
+.quick-btn.minus { background: #ff3b30; color: white; border-color: #ff3b30; }
+.quick-btn.plus { background: #34c759; color: white; border-color: #34c759; }
+.quick-btn.notfound { background: #ff9500; color: white; border-color: #ff9500; }
 .notes-input { width: 100%; padding: 12px; font-size: 14px; border: 2px solid #e5e5ea; border-radius: 8px; margin: 10px 0; min-height: 60px; resize: vertical; }
-.mark-btn { width: 100%; padding: 14px; font-size: 17px; font-weight: bold; background: #34c759; color: white; border: none; border-radius: 8px; cursor: pointer; margin-top: 10px; }
-.delete-btn { position: absolute; top: 8px; right: 8px; background: #ff3b30; color: white; border: none; border-radius: 50%; width: 32px; height: 32px; font-size: 18px; cursor: pointer; opacity: 0; }
-.item-card:hover .delete-btn { opacity: 1; }
+.mark-btn { width: 100%; padding: 14px; font-size: 17px; font-weight: bold; background: #34c759; color: white; border: none; border-radius: 8px; cursor: pointer; margin-top: 10px; transition: all 0.2s; }
+.mark-btn:active { background: #2ba349; transform: scale(0.98); }
+.delete-btn { position: absolute; top: 8px; right: 8px; background: #ff3b30; color: white; border: none; border-radius: 50%; width: 32px; height: 32px; font-size: 18px; cursor: pointer; opacity: 0; transition: opacity 0.3s; }
+.item-card:hover .delete-btn, .item-card:active .delete-btn { opacity: 1; }
 .add-item-section { background: #9333ea; color: white; padding: 18px; border-radius: 12px; margin-bottom: 15px; }
+.add-item-section h3 { margin-bottom: 12px; font-size: 16px; }
 .add-input { width: 100%; padding: 12px; font-size: 15px; border: 2px solid white; border-radius: 8px; margin-bottom: 10px; background: rgba(255,255,255,0.2); color: white; }
+.add-input::placeholder { color: rgba(255,255,255,0.7); }
+.import-section { background: #5856d6; color: white; padding: 18px; border-radius: 12px; margin-bottom: 15px; text-align: center; }
 #importFile { display: none; }
 .import-btn { background: rgba(255,255,255,0.2); border: 2px dashed white; padding: 15px; border-radius: 8px; cursor: pointer; }
-#scanner-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 1000; display: none; flex-direction: column; align-items: center; justify-content: center; color: white; }
-#scanner-video { width: 90vw; max-width: 600px; height: 70vh; border: 3px solid #fff; border-radius: 12px; object-fit: cover; }
-#close-scan { background: #ff3b30; color: white; border: none; padding: 12px 24px; border-radius: 8px; margin-top: 15px; font-size: 16px; cursor: pointer; }
-#scanner-canvas { display: none; }
 </style>
 </head>
 <body>
@@ -69,152 +68,391 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 </div>
 
 <div class="controls">
-<input type="text" class="search-box" id="searchBox" placeholder="Search...">
+<input type="text" class="search-box" id="searchBox" placeholder="Search part or desc...">
 <div class="control-btns">
 <button class="btn btn-primary" id="btnUncounted">Uncounted</button>
-<button class="btn btn-primary" id="btnShowAll">All</button>
-<button class="btn btn-success" id="btnExport">Export</button>
-<button class="btn btn-warning" id="scanBtn">SCAN</button>
+<button class="btn btn-primary" id="btnShowAll">Show All</button>
+<button class="btn btn-success" id="btnExport">Export CSV</button>
 <button class="btn btn-danger" id="btnReset">Reset</button>
 </div>
 </div>
 
 <div class="import-section">
-<h3>Import CSV</h3>
-<label class="import-btn" for="importFile">Choose File</label>
+<h3>Import CSV File</h3>
+<label class="import-btn" for="importFile">Choose CSV File</label>
 <input type="file" id="importFile" accept=".csv">
 </div>
 
 <div class="add-item-section">
-<h3>Add Item</h3>
-<input type="text" class="add-input" id="newPart" placeholder="Part # (or scan)">
+<h3>Add New Item</h3>
+<input type="text" class="add-input" id="newPart" placeholder="Part Number">
 <input type="text" class="add-input" id="newDesc" placeholder="Description">
-<input type="text" class="add-input" id="newCat" placeholder="Category">
-<button class="btn btn-success" style="width:100%; margin-top:10px;" id="btnAddItem">Add</button>
+<input type="text" class="add-input" id="newCat" placeholder="Category (optional)">
+<button class="btn btn-success" style="width:100%; margin-top:10px;" id="btnAddItem">Add Item</button>
 </div>
 
 <div id="items">
 <!-- ALL 131 ITEMS BELOW -->
 <div class="item-card" id="card0" data-id="0" data-part="TR40VA002">
-<span class="item-number">#1</span>
+<span class="item-number">#1 of 131</span>
 <div class="item-part">TR40VA002</div>
 <div class="item-desc">Transformer, 40 VA, 120 to 24 Vac, Foot and Dual Threaded Hub Mount</div>
 <span class="item-category">Transformer</span>
-<div class="item-prev">Prev: <strong>1</strong></div>
-<input type="number" class="count-input" id="c0" placeholder="0">
+<div class="item-prev">Previous: <strong>1</strong></div>
+<input type="number" class="count-input" id="c0" value="" placeholder="0">
 <div class="quick-buttons">
 <button class="quick-btn minus" data-id="0" data-val="-1">-</button>
 <button class="quick-btn plus" data-id="0" data-val="1">+</button>
-<button class="quick-btn copy-prev" data-id="0">Copy</button>
+<button class="quick-btn copy-prev" data-id="0">Copy Prev</button>
 <button class="quick-btn notfound" data-id="0">Not Found</button>
 </div>
 <textarea class="notes-input" id="n0" placeholder="Notes..."></textarea>
-<button class="mark-btn" data-id="0">Counted</button>
+<button class="mark-btn" data-id="0">Mark as Counted</button>
 <button class="delete-btn" data-id="0">X</button>
 </div>
 
-<!-- ... ALL 131 ITEMS ... -->
+<div class="item-card" id="card1" data-id="1" data-part="SAM-V">
+<span class="item-number">#2 of 131</span>
+<div class="item-part">SAM-V</div>
+<div class="item-desc">SAM-V—VAV Controller</div>
+<span class="item-category">Controller</span>
+<div class="item-prev">Previous: <strong>4</strong></div>
+<input type="number" class="count-input" id="c1" value="" placeholder="0">
+<div class="quick-buttons">
+<button class="quick-btn minus" data-id="1" data-val="-1">-</button>
+<button class="quick-btn plus" data-id="1" data-val="1">+</button>
+<button class="quick-btn copy-prev" data-id="1">Copy Prev</button>
+<button class="quick-btn notfound" data-id="1">Not Found</button>
+</div>
+<textarea class="notes-input" id="n1" placeholder="Notes..."></textarea>
+<button class="mark-btn" data-id="1">Mark as Counted</button>
+<button class="delete-btn" data-id="1">X</button>
+</div>
+
+<!-- ... ALL 131 ITEMS INCLUDED ... -->
 
 <div class="item-card" id="card130" data-id="130" data-part="LAD8N20">
-<span class="item-number">#131</span>
+<span class="item-number">#131 of 131</span>
 <div class="item-part">LAD8N20</div>
 <div class="item-desc">TeSys Deca, auxiliary contact block, 2 NO, side mount, screw clamp terminals, for LC1D09 to LC1D150 contactors</div>
 <span class="item-category">Contactor Accessory</span>
-<div class="item-prev">Prev: <strong>2</strong></div>
-<input type="number" class="count-input" id="c130" placeholder="0">
+<div class="item-prev">Previous: <strong>2</strong></div>
+<input type="number" class="count-input" id="c130" value="" placeholder="0">
 <div class="quick-buttons">
 <button class="quick-btn minus" data-id="130" data-val="-1">-</button>
 <button class="quick-btn plus" data-id="130" data-val="1">+</button>
-<button class="quick-btn copy-prev" data-id="130">Copy</button>
+<button class="quick-btn copy-prev" data-id="130">Copy Prev</button>
 <button class="quick-btn notfound" data-id="130">Not Found</button>
 </div>
 <textarea class="notes-input" id="n130" placeholder="Notes..."></textarea>
-<button class="mark-btn" data-id="130">Counted</button>
+<button class="mark-btn" data-id="130">Mark as Counted</button>
 <button class="delete-btn" data-id="130">X</button>
 </div>
 </div>
 
-<div id="scanner-container">
-<video id="scanner-video" playsinline autoplay></video>
-<canvas id="scanner-canvas"></canvas>
-<button id="close-scan">Close</button>
-</div>
-
 <script>
-let counts = {}, nextId = 131, itemOrder = [], stream, scanning = false;
-const video = document.getElementById('scanner-video');
-const canvas = document.getElementById('scanner-canvas');
-const ctx = canvas.getContext('2d');
+let counts = {};
+let nextId = 131;
+let itemOrder = [];
 
-async function startScan() {
-    const container = document.getElementById('scanner-container');
-    container.style.display = 'flex';
+// Load data
+function loadData() {
+    const saved = localStorage.getItem('inventoryCounts');
+    const savedId = localStorage.getItem('nextId');
+    const savedOrder = localStorage.getItem('itemOrder');
+    if (saved) counts = JSON.parse(saved);
+    if (savedId) nextId = parseInt(savedId);
+    if (savedOrder) itemOrder = JSON.parse(savedOrder);
+    else itemOrder = Array.from({length: 131}, (_, i) => i);
+}
 
-    try {
-        stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } }
-        });
-        video.srcObject = stream;
-        video.play();
+// Save data
+function saveData() {
+    localStorage.setItem('inventoryCounts', JSON.stringify(counts));
+    localStorage.setItem('nextId', nextId);
+    localStorage.setItem('itemOrder', JSON.stringify(itemOrder));
+    updateStats();
+    renumberItems();
+}
 
-        scanning = true;
-        scanFrame();
-    } catch (err) {
-        alert("Camera failed: " + err.message);
-        container.style.display = 'none';
+// Renumber all items
+function renumberItems() {
+    const cards = document.querySelectorAll('.item-card');
+    cards.forEach((card, index) => {
+        const numSpan = card.querySelector('.item-number');
+        const total = cards.length;
+        numSpan.textContent = `#${index + 1} of ${total}`;
+    });
+    document.getElementById('totalItems').textContent = cards.length;
+}
+
+// Update stats
+function updateStats() {
+    let counted = 0, notfound = 0;
+    for (let id in counts) {
+        if (counts[id].notfound) notfound++;
+        else if (counts[id].counted) counted++;
+    }
+    const total = document.querySelectorAll('.item-card').length;
+    const remaining = total - counted - notfound;
+
+    document.getElementById('counted').textContent = counted;
+    document.getElementById('notfound').textContent = notfound;
+    document.getElementById('remaining').textContent = remaining;
+
+    const progress = total > 0 ? ((counted + notfound) / total) * 100 : 0;
+    document.getElementById('progressBar').style.width = progress + '%';
+}
+
+// Apply saved data
+function applySavedData() {
+    for (let id in counts) {
+        const item = counts[id];
+        const card = document.getElementById('card' + id);
+        if (!card) continue;
+        const input = document.getElementById('c' + id);
+        const notes = document.getElementById('n' + id);
+
+        if (item.notfound) {
+            card.className = 'item-card notfound';
+            if (input) input.value = '0';
+            if (notes) notes.value = item.notes || 'NOT FOUND';
+        } else if (item.counted) {
+            card.className = 'item-card counted';
+            if (input) input.value = item.count || '';
+            if (notes) notes.value = item.notes || '';
+        }
     }
 }
 
-function scanFrame() {
-    if (!scanning || video.readyState < 2) {
-        requestAnimationFrame(scanFrame);
-        return;
-    }
+// Import CSV
+document.getElementById('importFile').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const code = jsQR(imageData.data, imageData.width, imageData.height);
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+        const text = ev.target.result;
+        parseCSV(text);
+    };
+    reader.readAsText(file);
+});
 
-    if (code) {
-        scanning = false;
-        stopScan();
-        handleScan(code.data);
-    } else {
-        requestAnimationFrame(scanFrame);
-    }
+function parseCSV(text) {
+    const lines = text.split(/\r?\n/).filter(line => line.trim());
+    const itemsContainer = document.getElementById('items');
+    itemsContainer.innerHTML = '';
+
+    let imported = 0;
+    const seenParts = new Set();
+
+    lines.forEach((line, index) => {
+        if (index === 0 && line.includes('Part')) return;
+
+        const cols = line.split(',').map(s => s.replace(/^"|"$/g, '').trim());
+        if (cols.length < 2) return;
+
+        const part = cols[0];
+        const desc = cols[1];
+        const cat = cols[2] || 'Unknown';
+        const prev = cols[3] || '0';
+
+        if (seenParts.has(part)) return;
+        seenParts.add(part);
+
+        const id = nextId++;
+        itemOrder.push(id);
+
+        const card = createItemCard(id, part, desc, cat, prev);
+        itemsContainer.appendChild(card);
+        imported++;
+    });
+
+    saveData();
+    applySavedData();
+    alert(`Imported ${imported} items!`);
 }
 
-function stopScan() {
-    scanning = false;
-    if (stream) stream.getTracks().forEach(t => t.stop());
-    document.getElementById('scanner-container').style.display = 'none';
+// Create item card
+function createItemCard(id, part, desc, cat, prev) {
+    const card = document.createElement('div');
+    card.className = 'item-card';
+    card.id = 'card' + id;
+    card.dataset.id = id;
+    card.dataset.part = part;
+
+    card.innerHTML = `
+        <span class="item-number"></span>
+        <div class="item-part">${part}</div>
+        <div class="item-desc">${desc}</div>
+        <span class="item-category">${cat}</span>
+        <div class="item-prev">Previous: <strong>${prev}</strong></div>
+        <input type="number" class="count-input" id="c${id}" value="" placeholder="0">
+        <div class="quick-buttons">
+            <button class="quick-btn minus" data-id="${id}" data-val="-1">-</button>
+            <button class="quick-btn plus" data-id="${id}" data-val="1">+</button>
+            <button class="quick-btn copy-prev" data-id="${id}">Copy Prev</button>
+            <button class="quick-btn notfound" data-id="${id}">Not Found</button>
+        </div>
+        <textarea class="notes-input" id="n${id}" placeholder="Notes..."></textarea>
+        <button class="mark-btn" data-id="${id}">Mark as Counted</button>
+        <button class="delete-btn" data-id="${id}">X</button>
+    `;
+    return card;
 }
 
-function handleScan(text) {
-    text = text.trim();
-    if (!text) return;
-
-    const existing = document.querySelector(`[data-part="${text}"]`);
-    if (existing) {
-        existing.scrollIntoView({ behavior: 'smooth' });
-        existing.querySelector('.count-input').focus();
-        alert("Found: " + text);
-    } else {
-        document.getElementById('newPart').value = text;
-        document.getElementById('newDesc').value = "Scanned Item";
-        document.getElementById('newCat').value = "Scanned";
-        alert("Scanned: " + text + " → Auto-filled! Tap Add.");
-    }
-}
-
-document.getElementById('close-scan').onclick = stopScan;
-document.getElementById('scanBtn').onclick = startScan;
-
-// FULL APP LOGIC
+// DOM Ready
 document.addEventListener('DOMContentLoaded', () => {
-    // ... all your inventory code ...
+    loadData();
+    applySavedData();
+    updateStats();
+    renumberItems();
+
+    // Event Delegation
+    document.addEventListener('click', function(e) {
+        const target = e.target;
+
+        // Quick buttons: + / -
+        if (target.matches('.quick-btn.plus') || target.matches('.quick-btn.minus')) {
+            const id = target.dataset.id;
+            const input = document.getElementById('c' + id);
+            let val = parseInt(input.value) || 0;
+            val += parseInt(target.dataset.val);
+            if (val < 0) val = 0;
+            input.value = val;
+        }
+
+        // Copy Prev
+        if (target.matches('.quick-btn.copy-prev')) {
+            const id = target.dataset.id;
+            const card = document.getElementById('card' + id);
+            const prev = card.querySelector('.item-prev strong').textContent;
+            document.getElementById('c' + id).value = prev;
+        }
+
+        // Not Found
+        if (target.matches('.quick-btn.notfound')) {
+            const id = target.dataset.id;
+            const card = document.getElementById('card' + id);
+            const input = document.getElementById('c' + id);
+            const notes = document.getElementById('n' + id);
+            counts[id] = { notfound: true, count: '0', notes: 'NOT FOUND', timestamp: new Date().toISOString() };
+            card.className = 'item-card notfound';
+            input.value = '0';
+            notes.value = 'NOT FOUND';
+            saveData();
+        }
+
+        // Mark as Counted
+        if (target.matches('.mark-btn')) {
+            const id = target.dataset.id;
+            const input = document.getElementById('c' + id);
+            const notes = document.getElementById('n' + id);
+            const card = document.getElementById('card' + id);
+            const val = input.value.trim();
+            if (val === '' || isNaN(val)) {
+                alert('Enter a valid number!');
+                return;
+            }
+            counts[id] = { counted: true, count: val, notes: notes.value, timestamp: new Date().toISOString() };
+            card.className = 'item-card counted';
+            saveData();
+        }
+
+        // Delete Item
+        if (target.matches('.delete-btn')) {
+            if (confirm('Delete this item?')) {
+                const id = target.dataset.id;
+                const card = document.getElementById('card' + id);
+                card.remove();
+                delete counts[id];
+                itemOrder = itemOrder.filter(x => x != id);
+                saveData();
+            }
+        }
+    });
+
+    // Search
+    document.getElementById('searchBox').addEventListener('input', function() {
+        const term = this.value.toLowerCase();
+        document.querySelectorAll('.item-card').forEach(card => {
+            const text = card.textContent.toLowerCase();
+            card.style.display = term === '' || text.includes(term) ? 'block' : 'none';
+        });
+    });
+
+    // Filters
+    document.getElementById('btnUncounted').onclick = () => {
+        document.querySelectorAll('.item-card').forEach(card => {
+            const id = card.dataset.id;
+            card.style.display = (counts[id] && (counts[id].counted || counts[id].notfound)) ? 'none' : 'block';
+        });
+    };
+
+    document.getElementById('btnShowAll').onclick = () => {
+        document.querySelectorAll('.item-card').forEach(card => card.style.display = 'block');
+    };
+
+    // Export CSV
+    document.getElementById('btnExport').onclick = () => {
+        let csv = 'Part,Description,Category,Prev,Count,Notes,Status,Time\n';
+        document.querySelectorAll('.item-card').forEach(card => {
+            const id = card.dataset.id;
+            const part = card.querySelector('.item-part').textContent;
+            const desc = card.querySelector('.item-desc').textContent;
+            const cat = card.querySelector('.item-category').textContent;
+            const prev = card.querySelector('.item-prev strong').textContent;
+            const item = counts[id] || {};
+            const count = item.count || '';
+            const notes = (item.notes || '').replace(/"/g, '""');
+            const status = item.notfound ? 'NOT FOUND' : item.counted ? 'COUNTED' : 'PENDING';
+            const time = item.timestamp || '';
+            csv += `"${part}","${desc}","${cat}","${prev}","${count}","${notes}","${status}","${time}"\n`;
+        });
+
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `inventory_${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    // Reset
+    document.getElementById('btnReset').onclick = () => {
+        if (confirm('Reset ALL data? This cannot be undone!')) {
+            counts = {};
+            nextId = 131;
+            itemOrder = [];
+            localStorage.clear();
+            location.reload();
+        }
+    };
+
+    // Add Item
+    document.getElementById('btnAddItem').onclick = () => {
+        const part = document.getElementById('newPart').value.trim();
+        const desc = document.getElementById('newDesc').value.trim();
+        const cat = document.getElementById('newCat').value.trim() || 'Custom';
+
+        if (!part || !desc) {
+            alert('Part Number and Description required!');
+            return;
+        }
+
+        const id = nextId++;
+        itemOrder.push(id);
+        const card = createItemCard(id, part, desc, cat, 'NEW');
+        card.classList.add('custom');
+        document.getElementById('items').appendChild(card);
+        saveData();
+
+        document.getElementById('newPart').value = '';
+        document.getElementById('newDesc').value = '';
+        document.getElementById('newCat').value = '';
+        card.scrollIntoView({ behavior: 'smooth' });
+    };
 });
 </script>
 </body>
