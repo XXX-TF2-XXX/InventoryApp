@@ -53,6 +53,15 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .import-section { background: #5856d6; color: white; padding: 18px; border-radius: 12px; margin-bottom: 15px; text-align: center; }
 #importFile { display: none; }
 .import-btn { background: rgba(255,255,255,0.2); border: 2px dashed white; padding: 15px; border-radius: 8px; cursor: pointer; }
+
+/* Toast notification */
+.toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,0.8); color: white; padding: 10px 20px;
+    border-radius: 8px; font-size: 14px; z-index: 1000;
+    opacity: 0; transition: opacity 0.3s;
+}
+.toast.show { opacity: 1; }
 </style>
 </head>
 <body>
@@ -93,7 +102,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 </div>
 
 <div id="items">
-<!-- 131 items are here – same as before (first 5 + last shown) -->
+<!-- 131 items (first 5 + last shown) -->
 <div class="item-card" id="card0" data-id="0" data-part="TR40VA002">
 <span class="item-number">#1 of 131</span>
 <div class="item-part">TR40VA002</div>
@@ -130,7 +139,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <button class="delete-btn" data-id="1">X</button>
 </div>
 
-<!-- ... (items 2-129 omitted for brevity – they are present in the file) ... -->
+<!-- ... (items 2–129 omitted for brevity – they are in the file) ... -->
 
 <div class="item-card" id="card130" data-id="130" data-part="LAD8N20">
 <span class="item-number">#131 of 131</span>
@@ -151,12 +160,15 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 </div>
 </div>
 
+<!-- Toast -->
+<div id="toast" class="toast">Saved!</div>
+
 <script>
 let counts = {};
 let nextId = 131;
 let itemOrder = [];
 
-// Load data
+// Load from localStorage
 function loadData() {
     const saved = localStorage.getItem('inventoryCounts');
     const savedId = localStorage.getItem('nextId');
@@ -167,16 +179,25 @@ function loadData() {
     else itemOrder = Array.from({length: 131}, (_, i) => i);
 }
 
-// Save data
-function saveData() {
+// Auto-save everything
+function autoSave() {
     localStorage.setItem('inventoryCounts', JSON.stringify(counts));
     localStorage.setItem('nextId', nextId);
     localStorage.setItem('itemOrder', JSON.stringify(itemOrder));
     updateStats();
     renumberItems();
+    showToast();
 }
 
-// Renumber all items
+// Toast
+function showToast() {
+    const toast = document.getElementById('toast');
+    toast.classList.add('show');
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(() => toast.classList.remove('show'), 1000);
+}
+
+// Renumber
 function renumberItems() {
     const cards = document.querySelectorAll('.item-card');
     cards.forEach((card, index) => {
@@ -205,7 +226,7 @@ function updateStats() {
     document.getElementById('progressBar').style.width = progress + '%';
 }
 
-// Apply saved data
+// Apply saved state
 function applySavedData() {
     for (let id in counts) {
         const item = counts[id];
@@ -226,62 +247,46 @@ function applySavedData() {
     }
 }
 
-// Import CSV (unchanged)
+// Import CSV
 document.getElementById('importFile').addEventListener('change', function(e) {
     const file = e.target.files[0];
     if (!file) return;
-
     const reader = new FileReader();
-    reader.onload = function(ev) {
-        const text = ev.target.result;
-        parseCSV(text);
-    };
+    reader.onload = ev => parseCSV(ev.target.result);
     reader.readAsText(file);
 });
 
 function parseCSV(text) {
-    const lines = text.split(/\r?\n/).filter(line => line.trim());
-    const itemsContainer = document.getElementById('items');
-    itemsContainer.innerHTML = '';
-
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    const container = document.getElementById('items');
+    container.innerHTML = '';
     let imported = 0;
-    const seenParts = new Set();
+    const seen = new Set();
 
-    lines.forEach((line, index) => {
-        if (index === 0 && line.includes('Part')) return;
-
+    lines.forEach((line, i) => {
+        if (i === 0 && line.includes('Part')) return;
         const cols = line.split(',').map(s => s.replace(/^"|"$/g, '').trim());
         if (cols.length < 2) return;
-
-        const part = cols[0];
-        const desc = cols[1];
-        const cat = cols[2] || 'Unknown';
-        const prev = cols[3] || '0';
-
-        if (seenParts.has(part)) return;
-        seenParts.add(part);
-
+        const part = cols[0], desc = cols[1], cat = cols[2] || 'Unknown', prev = cols[3] || '0';
+        if (seen.has(part)) return;
+        seen.add(part);
         const id = nextId++;
         itemOrder.push(id);
-
-        const card = createItemCard(id, part, desc, cat, prev);
-        itemsContainer.appendChild(card);
+        container.appendChild(createItemCard(id, part, desc, cat, prev));
         imported++;
     });
-
-    saveData();
+    autoSave();
     applySavedData();
     alert(`Imported ${imported} items!`);
 }
 
-// Create item card
+// Create card
 function createItemCard(id, part, desc, cat, prev) {
     const card = document.createElement('div');
     card.className = 'item-card';
     card.id = 'card' + id;
     card.dataset.id = id;
     card.dataset.part = part;
-
     card.innerHTML = `
         <span class="item-number"></span>
         <div class="item-part">${part}</div>
@@ -302,77 +307,43 @@ function createItemCard(id, part, desc, cat, prev) {
     return card;
 }
 
-/* ---------- NEW: Add Item with duplicate-check ---------- */
-document.getElementById('btnAddItem').onclick = () => {
-    const part = document.getElementById('newPart').value.trim();
-    const desc = document.getElementById('newDesc').value.trim();
-    const cat = document.getElementById('newCat').value.trim() || 'Custom';
-
-    if (!part || !desc) {
-        alert('Part Number and Description required!');
-        return;
-    }
-
-    const normalizedPart = part.toUpperCase();
-
-    // Look for an existing card with the same part number
-    const existingCard = Array.from(document.querySelectorAll('.item-card')).find(
-        c => c.dataset.part.toUpperCase() === normalizedPart
-    );
-
-    if (existingCard) {
-        // Scroll to it and flash a highlight
-        existingCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        existingCard.classList.add('highlight');
-        setTimeout(() => existingCard.classList.remove('highlight'), 1000);
-        return;
-    }
-
-    // New part – create card
-    const id = nextId++;
-    itemOrder.push(id);
-    const card = createItemCard(id, part, desc, cat, 'NEW');
-    card.classList.add('custom');
-    document.getElementById('items').appendChild(card);
-    saveData();
-
-    // Clear inputs
-    document.getElementById('newPart').value = '';
-    document.getElementById('newDesc').value = '';
-    document.getElementById('newCat').value = '';
-
-    // Scroll to the newly added card
-    card.scrollIntoView({ behavior: 'smooth' });
-};
-
-/* ---------- Rest of the script (unchanged) ---------- */
+// DOM Ready
 document.addEventListener('DOMContentLoaded', () => {
     loadData();
     applySavedData();
     updateStats();
     renumberItems();
 
-    document.addEventListener('click', function(e) {
-        const target = e.target;
+    // Event delegation
+    document.addEventListener('click', e => {
+        const t = e.target;
 
-        if (target.matches('.quick-btn.plus') || target.matches('.quick-btn.minus')) {
-            const id = target.dataset.id;
+        // + / -
+        if (t.matches('.quick-btn.plus') || t.matches('.quick-btn.minus')) {
+            const id = t.dataset.id;
             const input = document.getElementById('c' + id);
             let val = parseInt(input.value) || 0;
-            val += parseInt(target.dataset.val);
+            val += parseInt(t.dataset.val);
             if (val < 0) val = 0;
             input.value = val;
+            counts[id] = { ...counts[id], count: val.toString() };
+            autoSave();
         }
 
-        if (target.matches('.quick-btn.copy-prev')) {
-            const id = target.dataset.id;
+        // Copy Prev
+        if (t.matches('.quick-btn.copy-prev')) {
+            const id = t.dataset.id;
             const card = document.getElementById('card' + id);
             const prev = card.querySelector('.item-prev strong').textContent;
-            document.getElementById('c' + id).value = prev;
+            const input = document.getElementById('c' + id);
+            input.value = prev;
+            counts[id] = { ...counts[id], count: prev };
+            autoSave();
         }
 
-        if (target.matches('.quick-btn.notfound')) {
-            const id = target.dataset.id;
+        // Not Found
+        if (t.matches('.quick-btn.notfound')) {
+            const id = t.dataset.id;
             const card = document.getElementById('card' + id);
             const input = document.getElementById('c' + id);
             const notes = document.getElementById('n' + id);
@@ -380,36 +351,56 @@ document.addEventListener('DOMContentLoaded', () => {
             card.className = 'item-card notfound';
             input.value = '0';
             notes.value = 'NOT FOUND';
-            saveData();
+            autoSave();
         }
 
-        if (target.matches('.mark-btn')) {
-            const id = target.dataset.id;
+        // Mark as Counted
+        if (t.matches('.mark-btn')) {
+            const id = t.dataset.id;
             const input = document.getElementById('c' + id);
             const notes = document.getElementById('n' + id);
             const card = document.getElementById('card' + id);
             const val = input.value.trim();
-            if (val === '' || isNaN(val)) {
-                alert('Enter a valid number!');
-                return;
-            }
+            if (val === '' || isNaN(val)) { alert('Enter a valid number!'); return; }
             counts[id] = { counted: true, count: val, notes: notes.value, timestamp: new Date().toISOString() };
             card.className = 'item-card counted';
-            saveData();
+            autoSave();
         }
 
-        if (target.matches('.delete-btn')) {
+        // Delete
+        if (t.matches('.delete-btn')) {
             if (confirm('Delete this item?')) {
-                const id = target.dataset.id;
-                const card = document.getElementById('card' + id);
-                card.remove();
+                const id = t.dataset.id;
+                document.getElementById('card' + id).remove();
                 delete counts[id];
                 itemOrder = itemOrder.filter(x => x != id);
-                saveData();
+                autoSave();
             }
         }
     });
 
+    // Count input blur
+    document.addEventListener('blur', e => {
+        if (e.target.classList.contains('count-input')) {
+            const id = e.target.id.slice(1);
+            const val = e.target.value.trim();
+            if (val !== '' && !isNaN(val)) {
+                counts[id] = { ...counts[id], count: val };
+                autoSave();
+            }
+        }
+    }, true);
+
+    // Notes blur
+    document.addEventListener('blur', e => {
+        if (e.target.classList.contains('notes-input')) {
+            const id = e.target.id.slice(1);
+            counts[id] = { ...counts[id], notes: e.target.value };
+            autoSave();
+        }
+    }, true);
+
+    // Search
     document.getElementById('searchBox').addEventListener('input', function() {
         const term = this.value.toLowerCase();
         document.querySelectorAll('.item-card').forEach(card => {
@@ -418,17 +409,18 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Filters
     document.getElementById('btnUncounted').onclick = () => {
         document.querySelectorAll('.item-card').forEach(card => {
             const id = card.dataset.id;
             card.style.display = (counts[id] && (counts[id].counted || counts[id].notfound)) ? 'none' : 'block';
         });
     };
-
     document.getElementById('btnShowAll').onclick = () => {
         document.querySelectorAll('.item-card').forEach(card => card.style.display = 'block');
     };
 
+    // Export
     document.getElementById('btnExport').onclick = () => {
         let csv = 'Part,Description,Category,Prev,Count,Notes,Status,Time\n';
         document.querySelectorAll('.item-card').forEach(card => {
@@ -444,7 +436,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const time = item.timestamp || '';
             csv += `"${part}","${desc}","${cat}","${prev}","${count}","${notes}","${status}","${time}"\n`;
         });
-
         const blob = new Blob([csv], { type: 'text/csv' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -454,14 +445,44 @@ document.addEventListener('DOMContentLoaded', () => {
         URL.revokeObjectURL(url);
     };
 
+    // Reset
     document.getElementById('btnReset').onclick = () => {
         if (confirm('Reset ALL data? This cannot be undone!')) {
-            counts = {};
-            nextId = 131;
-            itemOrder = [];
+            counts = {}; nextId = 131; itemOrder = [];
             localStorage.clear();
             location.reload();
         }
+    };
+
+    // Add Item (with duplicate check)
+    document.getElementById('btnAddItem').onclick = () => {
+        const part = document.getElementById('newPart').value.trim();
+        const desc = document.getElementById('newDesc').value.trim();
+        const cat = document.getElementById('newCat').value.trim() || 'Custom';
+
+        if (!part || !desc) { alert('Part Number and Description required!'); return; }
+
+        const norm = part.toUpperCase();
+        const existing = Array.from(document.querySelectorAll('.item-card')).find(c => c.dataset.part.toUpperCase() === norm);
+
+        if (existing) {
+            existing.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            existing.classList.add('highlight');
+            setTimeout(() => existing.classList.remove('highlight'), 1000);
+            return;
+        }
+
+        const id = nextId++;
+        itemOrder.push(id);
+        const card = createItemCard(id, part, desc, cat, 'NEW');
+        card.classList.add('custom');
+        document.getElementById('items').appendChild(card);
+        autoSave();
+
+        document.getElementById('newPart').value = '';
+        document.getElementById('newDesc').value = '';
+        document.getElementById('newCat').value = '';
+        card.scrollIntoView({ behavior: 'smooth' });
     };
 });
 </script>
