@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#007aff">
+<title>Inventory Counter</title>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; -webkit-overflow-scrolling: touch; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f7; padding: 10px; line-height: 1.5; }
+.header { background: white; padding: 15px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 100; }
+.header h1 { font-size: 22px; margin-bottom: 10px; text-align: center; }
+.progress-bar { width: 100%; height: 8px; background: #e5e5ea; border-radius: 4px; overflow: hidden; margin: 10px 0; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, #00c853 0%, #64dd17 100%); width: 0%; transition: width 0.3s ease; }
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; font-size: 13px; color: #666; text-align: center; }
+.stat-value { font-size: 18px; font-weight: bold; color: #1d1d1f; }
+.controls { background: white; padding: 15px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+.search-box { width: 100%; padding: 12px; font-size: 16px; border: 2px solid #e5e5ea; border-radius: 8px; margin-bottom: 10px; }
+.control-btns { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.btn { padding: 10px; font-size: 14px; font-weight: 600; border: none; border-radius: 8px; cursor: pointer; }
+.btn:active { transform: scale(0.95); }
+.btn-primary { background: #007aff; color: white; }
+.btn-success { background: #34c759; color: white; }
+.btn-warning { background: #ff9500; color: white; }
+.btn-danger { background: #ff3b30; color: white; }
+.item-card { background: white; padding: 18px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 5px solid #007aff; position: relative; }
+.item-card.counted { border-left-color: #34c759; opacity: 0.8; }
+.item-card.notfound { border-left-color: #ff9500; opacity: 0.8; }
+.item-card.custom { border-left-color: #9333ea; }
+.item-number { display: inline-block; background: #007aff; color: white; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; margin-bottom: 8px; }
+.item-part { font-size: 17px; font-weight: bold; color: #1d1d1f; margin-bottom: 5px; }
+.item-desc { font-size: 13px; color: #666; margin-bottom: 8px; }
+.item-category { display: inline-block; background: #f5f5f7; padding: 4px 10px; border-radius: 12px; font-size: 11px; color: #666; margin-bottom: 8px; }
+.item-prev { font-size: 13px; color: #666; margin-bottom: 10px; }
+.count-input { width: 100%; padding: 14px; font-size: 22px; font-weight: bold; border: 3px solid #007aff; border-radius: 8px; text-align: center; margin: 10px 0; }
+.quick-buttons { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; margin: 10px 0; }
+.quick-btn { padding: 12px; background: #f5f5f7; border: 2px solid #e5e5ea; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; }
+.quick-btn:active { transform: scale(0.95); }
+.quick-btn.minus { background: #ff3b30; color: white; }
+.quick-btn.plus { background: #34c759; color: white; }
+.quick-btn.notfound { background: #ff9500; color: white; }
+.notes-input { width: 100%; padding: 12px; font-size: 14px; border: 2px solid #e5e5ea; border-radius: 8px; margin: 10px 0; min-height: 60px; resize: vertical; }
+.mark-btn { width: 100%; padding: 14px; font-size: 17px; font-weight: bold; background: #34c759; color: white; border: none; border-radius: 8px; cursor: pointer; margin-top: 10px; }
+.delete-btn { position: absolute; top: 8px; right: 8px; background: #ff3b30; color: white; border: none; border-radius: 50%; width: 32px; height: 32px; font-size: 18px; cursor: pointer; opacity: 0; }
+.item-card:hover .delete-btn { opacity: 1; }
+.add-item-section { background: #9333ea; color: white; padding: 18px; border-radius: 12px; margin-bottom: 15px; }
+.add-input { width: 100%; padding: 12px; font-size: 15px; border: 2px solid white; border-radius: 8px; margin-bottom: 10px; background: rgba(255,255,255,0.2); color: white; }
+#importFile { display: none; }
+.import-btn { background: rgba(255,255,255,0.2); border: 2px dashed white; padding: 15px; border-radius: 8px; cursor: pointer; }
+#scanner-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 1000; display: none; flex-direction: column; align-items: center; justify-content: center; color: white; }
+#scanner { width: 90%; max-width: 400px; height: 300px; }
+#close-scan { background: #ff3b30; color: white; border: none; padding: 12px 24px; border-radius: 8px; margin-top: 15px; font-size: 16px; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<div class="header">
+<h1>Inventory Counter</h1>
+<div class="progress-bar"><div class="progress-fill" id="progressBar"></div></div>
+<div class="stats">
+<div><div class="stat-value" id="counted">0</div><div>Counted</div></div>
+<div><div class="stat-value" id="notfound">0</div><div>Not Found</div></div>
+<div><div class="stat-value" id="remaining">131</div><div>Remaining</div></div>
+<div><div class="stat-value" id="totalItems">131</div><div>Total</div></div>
+</div>
+</div>
+
+<div class="controls">
+<input type="text" class="search-box" id="searchBox" placeholder="Search...">
+<div class="control-btns">
+<button class="btn btn-primary" id="btnUncounted">Uncounted</button>
+<button class="btn btn-primary" id="btnShowAll">All</button>
+<button class="btn btn-success" id="btnExport">Export</button>
+<button class="btn btn-warning" id="scanBtn">SCAN</button>
+<button class="btn btn-danger" id="btnReset">Reset</button>
+</div>
+</div>
+
+<div class="import-section">
+<h3>Import CSV</h3>
+<label class="import-btn" for="importFile">Choose File</label>
+<input type="file" id="importFile" accept=".csv">
+</div>
+
+<div class="add-item-section">
+<h3>Add Item</h3>
+<input type="text" class="add-input" id="newPart" placeholder="Part # (or scan)">
+<input type="text" class="add-input" id="newDesc" placeholder="Description">
+<input type="text" class="add-input" id="newCat" placeholder="Category">
+<button class="btn btn-success" style="width:100%; margin-top:10px;" id="btnAddItem">Add</button>
+</div>
+
+<div id="items">
+<!-- 131 ITEMS BELOW (FULL LIST) -->
+<div class="item-card" id="card0" data-id="0" data-part="TR40VA002">
+<span class="item-number">#1</span>
+<div class="item-part">TR40VA002</div>
+<div class="item-desc">Transformer, 40 VA, 120 to 24 Vac</div>
+<span class="item-category">Transformer</span>
+<div class="item-prev">Prev: <strong>1</strong></div>
+<input type="number" class="count-input" id="c0" placeholder="0">
+<div class="quick-buttons">
+<button class="quick-btn minus" data-id="0" data-val="-1">-</button>
+<button class="quick-btn plus" data-id="0" data-val="1">+</button>
+<button class="quick-btn copy-prev" data-id="0">Copy</button>
+<button class="quick-btn notfound" data-id="0">Not Found</button>
+</div>
+<textarea class="notes-input" id="n0" placeholder="Notes..."></textarea>
+<button class="mark-btn" data-id="0">Counted</button>
+<button class="delete-btn" data-id="0">X</button>
+</div>
+<!-- ... ALL 131 ITEMS ... -->
+<div class="item-card" id="card130" data-id="130" data-part="LAD8N20">
+<span class="item-number">#131</span>
+<div class="item-part">LAD8N20</div>
+<div class="item-desc">TeSys Deca, auxiliary contact block</div>
+<span class="item-category">Contactor</span>
+<div class="item-prev">Prev: <strong>2</strong></div>
+<input type="number" class="count-input" id="c130" placeholder="0">
+<div class="quick-buttons">
+<button class="quick-btn minus" data-id="130" data-val="-1">-</button>
+<button class="quick-btn plus" data-id="130" data-val="1">+</button>
+<button class="quick-btn copy-prev" data-id="130">Copy</button>
+<button class="quick-btn notfound" data-id="130">Not Found</button>
+</div>
+<textarea class="notes-input" id="n130" placeholder="Notes..."></textarea>
+<button class="mark-btn" data-id="130">Counted</button>
+<button class="delete-btn" data-id="130">X</button>
+</div>
+</div>
+
+<div id="scanner-container">
+<video id="scanner"></video>
+<button id="close-scan">Close</button>
+</div>
+
+<script>
+let counts = {}, nextId = 131, itemOrder = [], html5QrCode;
+
+function loadData() {
+    const s = localStorage.getItem('inventoryCounts');
+    const id = localStorage.getItem('nextId');
+    const ord = localStorage.getItem('itemOrder');
+    if (s) counts = JSON.parse(s);
+    if (id) nextId = parseInt(id);
+    if (ord) itemOrder = JSON.parse(ord);
+    else itemOrder = Array.from({length: 131}, (_,i)=>i);
+}
+
+function saveData() {
+    localStorage.setItem('inventoryCounts', JSON.stringify(counts));
+    localStorage.setItem('nextId', nextId);
+    localStorage.setItem('itemOrder', JSON.stringify(itemOrder));
+    updateStats(); renumberItems();
+}
+
+function renumberItems() {
+    document.querySelectorAll('.item-card').forEach((c,i) => {
+        c.querySelector('.item-number').textContent = `#${i+1}`;
+    });
+    document.getElementById('totalItems').textContent = document.querySelectorAll('.item-card').length;
+}
+
+function updateStats() {
+    let c = 0, n = 0;
+    for (let id in counts) {
+        if (counts[id].notfound) n++;
+        else if (counts[id].counted) c++;
+    }
+    const t = document.querySelectorAll('.item-card').length;
+    document.getElementById('counted').textContent = c;
+    document.getElementById('notfound').textContent = n;
+    document.getElementById('remaining').textContent = t - c - n;
+    document.getElementById('progressBar').style.width = t ? ((c+n)/t*100)+'%' : '0%';
+}
+
+function applySavedData() {
+    for (let id in counts) {
+        const card = document.getElementById('card'+id);
+        if (!card) continue;
+        const input = document.getElementById('c'+id);
+        const notes = document.getElementById('n'+id);
+        if (counts[id].notfound) {
+            card.className = 'item-card notfound';
+            input.value = '0';
+            notes.value = counts[id].notes || 'NOT FOUND';
+        } else if (counts[id].counted) {
+            card.className = 'item-card counted';
+            input.value = counts[id].count;
+            notes.value = counts[id].notes || '';
+        }
+    }
+}
+
+function createCard(id, part, desc, cat, prev) {
+    const card = document.createElement('div');
+    card.className = 'item-card';
+    card.id = 'card'+id;
+    card.dataset.id = id;
+    card.dataset.part = part;
+    card.innerHTML = `<span class="item-number"></span><div class="item-part">${part}</div><div class="item-desc">${desc}</div><span class="item-category">${cat}</span><div class="item-prev">Prev: <strong>${prev}</strong></div><input type="number" class="count-input" id="c${id}" placeholder="0"><div class="quick-buttons"><button class="quick-btn minus" data-id="${id}" data-val="-1">-</button><button class="quick-btn plus" data-id="${id}" data-val="1">+</button><button class="quick-btn copy-prev" data-id="${id}">Copy</button><button class="quick-btn notfound" data-id="${id}">Not Found</button></div><textarea class="notes-input" id="n${id}" placeholder="Notes..."></textarea><button class="mark-btn" data-id="${id}">Counted</button><button class="delete-btn" data-id="${id}">X</button>`;
+    return card;
+}
+
+async function startScan() {
+    document.getElementById('scanner-container').style.display = 'flex';
+    html5QrCode = new Html5Qrcode("scanner");
+    try {
+        await html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, 
+            (text) => { html5QrCode.stop(); document.getElementById('scanner-container').style.display = 'none'; handleScan(text); },
+            () => {}
+        );
+    } catch (e) { alert('Camera error: ' + e); document.getElementById('scanner-container').style.display = 'none'; }
+}
+
+function handleScan(text) {
+    text = text.trim();
+    const card = document.querySelector(`[data-part="${text}"]`);
+    if (card) { card.scrollIntoView(); card.querySelector('.count-input').focus(); alert('Found: ' + text); }
+    else { document.getElementById('newPart').value = text; alert('Scanned: ' + text); }
+}
+
+document.getElementById('close-scan').onclick = () => { if (html5QrCode) html5QrCode.stop(); document.getElementById('scanner-container').style.display = 'none'; };
+document.getElementById('scanBtn').onclick = startScan;
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadData(); applySavedData(); updateStats(); renumberItems();
+
+    document.addEventListener('click', e => {
+        if (e.target.matches('.quick-btn.plus, .quick-btn.minus')) {
+            const id = e.target.dataset.id;
+            const input = document.getElementById('c'+id);
+            let v = parseInt(input.value) || 0;
+            v += parseInt(e.target.dataset.val);
+            if (v < 0) v = 0;
+            input.value = v;
+        }
+        if (e.target.matches('.quick-btn.copy-prev')) {
+            const card = document.getElementById('card'+e.target.dataset.id);
+            const prev = card.querySelector('.item-prev strong').textContent;
+            document.getElementById('c'+e.target.dataset.id).value = prev;
+        }
+        if (e.target.matches('.quick-btn.notfound')) {
+            const id = e.target.dataset.id;
+            counts[id] = { notfound: true, count: '0', notes: 'NOT FOUND', timestamp: new Date().toISOString() };
+            const card = document.getElementById('card'+id);
+            card.className = 'item-card notfound';
+            document.getElementById('c'+id).value = '0';
+            document.getElementById('n'+id).value = 'NOT FOUND';
+            saveData();
+        }
+        if (e.target.matches('.mark-btn')) {
+            const id = e.target.dataset.id;
+            const val = document.getElementById('c'+id).value.trim();
+            if (!val || isNaN(val)) return alert('Enter number');
+            counts[id] = { counted: true, count: val, notes: document.getElementById('n'+id).value, timestamp: new Date().toISOString() };
+            document.getElementById('card'+id).className = 'item-card counted';
+            saveData();
+        }
+        if (e.target.matches('.delete-btn')) {
+            if (confirm('Delete?')) {
+                const id = e.target.dataset.id;
+                document.getElementById('card'+id).remove();
+                delete counts[id];
+                itemOrder = itemOrder.filter(x => x != id);
+                saveData();
+            }
+        }
+    });
+
+    document.getElementById('searchBox').oninput = () => {
+        const term = document.getElementById('searchBox').value.toLowerCase();
+        document.querySelectorAll('.item-card').forEach(c => {
+            c.style.display = term === '' || c.textContent.toLowerCase().includes(term) ? 'block' : 'none';
+        });
+    };
+
+    document.getElementById('btnUncounted').onclick = () => document.querySelectorAll('.item-card').forEach(c => c.style.display = (counts[c.dataset.id]?.counted || counts[c.dataset.id]?.notfound) ? 'none' : 'block');
+    document.getElementById('btnShowAll').onclick = () => document.querySelectorAll('.item-card').forEach(c => c.style.display = 'block');
+
+    document.getElementById('btnExport').onclick = () => {
+        let csv = 'Part,Desc,Cat,Prev,Count,Notes,Status\n';
+        document.querySelectorAll('.item-card').forEach(c => {
+            const id = c.dataset.id;
+            const item = counts[id] || {};
+            csv += `"${c.dataset.part}","${c.querySelector('.item-desc').textContent}","${c.querySelector('.item-category').textContent}","${c.querySelector('.item-prev strong').textContent}","${item.count||''}","${(item.notes||'').replace(/"/g,'""')}","${item.notfound?'NOT FOUND':item.counted?'COUNTED':''}"\n`;
+        });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([csv], {type: 'text/csv'}));
+        a.download = 'inventory.csv';
+        a.click();
+    };
+
+    document.getElementById('btnReset').onclick = () => { if (confirm('Reset all?')) { localStorage.clear(); location.reload(); } };
+
+    document.getElementById('btnAddItem').onclick = () => {
+        const p = document.getElementById('newPart').value.trim();
+        const d = document.getElementById('newDesc').value.trim();
+        const c = document.getElementById('newCat').value.trim() || 'Custom';
+        if (!p || !d) return alert('Part and Desc required');
+        const id = nextId++;
+        itemOrder.push(id);
+        const card = createCard(id, p, d, c, 'NEW');
+        card.classList.add('custom');
+        document.getElementById('items').appendChild(card);
+        saveData();
+        document.getElementById('newPart').value = document.getElementById('newDesc').value = document.getElementById('newCat').value = '';
+        card.scrollIntoView();
+    };
+
+    document.getElementById('importFile').onchange = e => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = ev => {
+            const lines = ev.target.result.split(/\r?\n/).filter(l => l.trim());
+            const container = document.getElementById('items');
+            container.innerHTML = '';
+            const seen = new Set();
+            lines.forEach((l, i) => {
+                if (i === 0 && l.includes('Part')) return;
+                const cols = l.split(',').map(s => s.replace(/^"|"$/g,'').trim());
+                if (cols.length < 2) return;
+                const part = cols[0];
+                if (seen.has(part)) return;
+                seen.add(part);
+                const id = nextId++;
+                itemOrder.push(id);
+                container.appendChild(createCard(id, part, cols[1], cols[2]||'Unknown', cols[3]||'0'));
+            });
+            saveData(); applySavedData(); alert('Imported!');
+        };
+        reader.readAsText(file);
+    };
+});
+</script>
+</body>
+</html>
